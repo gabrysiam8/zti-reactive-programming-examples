@@ -1,11 +1,19 @@
 package org.reactive.javarxexample;
 
+import io.reactivex.BackpressureStrategy;
+import io.reactivex.Flowable;
 import io.reactivex.Observable;
+import io.reactivex.schedulers.Schedulers;
+import io.reactivex.subscribers.TestSubscriber;
 import org.junit.Test;
-import reactor.core.publisher.Flux;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 public class ObservableExample {
 
@@ -75,6 +83,58 @@ public class ObservableExample {
                 .zipWith(Observable.range(1, Integer.MAX_VALUE),
                         (string, count) -> String.format("%2d. %s", count, string))
                 .subscribe(System.out::println);
+    }
+
+    @Test
+    public void simpleFlowable() {
+        Observable<Integer> integerObservable = Observable.just(1, 2, 3);
+        Flowable<Integer> integerFlowable = integerObservable
+                .toFlowable(BackpressureStrategy.BUFFER);
+    }
+
+    @Test
+    public void simpleFlowableBackpressureStrategyBUFFER() {
+        List testList = IntStream.range(0, 100000)
+                .boxed()
+                .collect(Collectors.toList());
+
+        Observable observable = Observable.fromIterable(testList);
+        TestSubscriber<Integer> testSubscriber = observable
+                .toFlowable(BackpressureStrategy.BUFFER)
+                .observeOn(Schedulers.computation()).test();
+
+        testSubscriber.awaitTerminalEvent();
+
+        List<Integer> receivedInts = testSubscriber.getEvents()
+                .get(0)
+                .stream()
+                .mapToInt(object -> (int) object)
+                .boxed()
+                .collect(Collectors.toList());
+
+        assertEquals(testList, receivedInts);
+    }
+
+    @Test
+    public void simpleFlowableBackpressureStrategyDROP() {
+        List testList = IntStream.range(0, 100000)
+                .boxed()
+                .collect(Collectors.toList());
+        Observable observable = Observable.fromIterable(testList);
+        TestSubscriber<Integer> testSubscriber = observable
+                .toFlowable(BackpressureStrategy.DROP)
+                .observeOn(Schedulers.computation())
+                .test();
+        testSubscriber.awaitTerminalEvent();
+        List<Integer> receivedInts = testSubscriber.getEvents()
+                .get(0)
+                .stream()
+                .mapToInt(object -> (int) object)
+                .boxed()
+                .collect(Collectors.toList());
+
+        assertTrue(receivedInts.size() < testList.size());
+        assertTrue(!receivedInts.contains(100000));
     }
 
 }
